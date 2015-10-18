@@ -1,0 +1,98 @@
+#!/usr/bin/env ruby
+
+require 'fileutils'
+require 'tmpdir'
+
+$library = File.expand_path(File.dirname(__FILE__)) + '/library'
+$stfs = File.expand_path(File.dirname(__FILE__)) + '/py360/py360/stfs.py'
+
+def split_dta(dta_string)
+  chunks = []
+  parens = 0
+  in_quote = false
+  in_comment = false
+  chunk = ''
+  dta_string.each_char do |c|
+    chunk += c
+    if in_quote
+      in_quote = false if c == '"'
+    elsif in_comment
+      in_comment = false if c == "\n"
+    else
+      in_quote = true if c == '"'
+      in_comment = true if c == ';'
+      parens += 1 if c == '('
+      parens -= 1 if c == ')'
+      if parens == 0 && c == ')'
+        chunks << chunk
+        chunk = ''
+      end
+    end
+  end
+  chunks[-1] += chunk
+  chunks.select { |chunk| chunk.match(/\S/) }
+end
+
+def read_dta(dta_path)
+  hsh = {}
+  split_dta(File.read(dta_path, encoding: Encoding::ISO_8859_1)).each do |chunk|
+    songname = chunk.match(/\A(\s|(;[^\n]*))*\((\s|(;[^\n]*))*\'?(\w+)\'?\s+/) { |md| md[5] }
+    raise "Couldn't find the song name in this chunk: #{chunk.inspect}" unless songname
+    hsh[songname] = chunk
+  end
+  hsh
+end
+
+def handle_folder(dir)
+  dta = "#{dir}/songs/songs.dta"
+  dta_upgrades = "#{dir}/songs_upgrades/upgrades.dta"
+  if File.exist?(dta)
+    read_dta(dta).each_pair do |song_name, dta_chunk|
+      puts "Extracting #{song_name}"
+      song_folder = "#{dir}/songs/#{song_name}"
+      dest = "#{$library}/#{song_name}/base/songs"
+      FileUtils.mkdir_p(dest)
+      raise "Song doesn't exist: #{song_folder}" unless Dir.exist?(song_folder)
+      FileUtils.cp_r(song_folder, dest)
+      File.write("#{dest}/songs.dta", dta_chunk)
+    end
+  end
+  if File.exist?(dta_upgrades)
+    read_dta(dta_upgrades).each_pair do |song_name, dta_chunk|
+      upgrade_version = dta_chunk.match(/\'?upgrade_version\'?\s+(\d+)/) { |md| md[1] }
+      raise "Couldn't find upgrade_version: #{dta_chunk}" unless upgrade_version
+      puts "Extracting #{song_name} upgrade #{upgrade_version}"
+      midi_file = dta_chunk.match(/\'?midi_file\'?\s+\"([^\"]+)\"/) { |md| md[1] }
+      raise "Couldn't find midi_file: #{dta_chunk}" unless midi_file
+      dest = "#{$library}/#{song_name}/upgrade_#{upgrade_version}"
+      FileUtils.mkdir_p(File.dirname("#{dest}/#{midi_file}"))
+      FileUtils.cp("#{dir}/#{midi_file}", "#{dest}/#{midi_file}")
+      File.write("#{dest}/songs_upgrades/upgrades.dta", dta_chunk)
+    end
+  end
+end
+
+def handle_con(con)
+  Dir.mktmpdir do |tmp|
+    system('python', $stfs, con, tmp)
+    handle_folder(tmp)
+  end
+end
+
+if ARGV.include?('--help')
+  STDERR.puts "Usage: #{$0} song1_rb3con song2_rb3con ..."
+  STDERR.puts "Add songs from CON files to the extracted Rock Band library."
+  exit 0
+end
+
+ARGV.each do |arg|
+  if File.exist?(arg)
+    if Dir.exist?(arg)
+      handle_folder(arg)
+    else
+      handle_con(arg)
+    end
+  else
+    raise "File/dir not found: #{arg}"
+  end
+end
