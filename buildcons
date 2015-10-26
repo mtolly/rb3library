@@ -1,0 +1,17 @@
+#!/usr/bin/env ruby
+
+require 'fileutils'
+
+if ARGV.length != 1
+  STDERR.puts "Usage: #{$0} /Volumes/myUSBdrive"
+  STDERR.puts "Puts CON of each library song onto the USB drive."
+  exit 1
+end
+
+FileUtils.mkdir_p "#{ARGV[0]}/Content/0000000000000000/45410914/00000001"
+
+songs = Dir.entries('library').select { |d| Dir.exist?("library/#{d}") && d[0] != '.' }
+songs.each do |song|
+  p song
+  system('./buildcon', song, "#{ARGV[0]}/Content/0000000000000000/45410914/00000001/#{song}")
+end

@@ -28,5 +28,9 @@ Dir.mktmpdir do |tmp|
   end
   File.write("#{tmp}/songs/songs.dta", all_dta) unless all_dta.empty?
   File.write("#{tmp}/songs_upgrades/upgrades.dta", all_dta_upgrades) unless all_dta_upgrades.empty?
-  system('mono', rb3pkg, '-f', tmp, ARGV[-1])
+  title = ARGV[0]
+  if ARGV.length > 2
+    title += ' ...'
+  end
+  system('mono', rb3pkg, '-f', tmp, '-p', title, ARGV[-1])
 end
