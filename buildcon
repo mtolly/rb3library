@@ -4,7 +4,6 @@ require 'fileutils'
 require 'tmpdir'
 
 $library = File.expand_path(File.dirname(__FILE__)) + '/library'
-rb3pkg = File.expand_path(File.dirname(__FILE__)) + '/rb3pkg/rb3pkg.exe'
 
 if ARGV.length < 2 || ARGV.include?('--help')
   STDERR.puts "Usage: #{$0} song1 [song2 song3 ...] out_rb3con"
@@ -23,14 +22,16 @@ Dir.mktmpdir do |tmp|
       all_dta_upgrades += "\n" + File.read(f, encoding: Encoding::ISO_8859_1)
     end
     Dir["#{$library}/#{song_name}/*/*"].each do |thing|
-      FileUtils.cp_r(thing, tmp)
+      system('cp', '-rL', thing, tmp)
     end
   end
+  FileUtils.rm_f("#{tmp}/songs/songs.dta")
   File.write("#{tmp}/songs/songs.dta", all_dta) unless all_dta.empty?
+  FileUtils.rm_f("#{tmp}/songs_upgrades/upgrades.dta")
   File.write("#{tmp}/songs_upgrades/upgrades.dta", all_dta_upgrades) unless all_dta_upgrades.empty?
   title = ARGV[0]
   if ARGV.length > 2
     title += ' ...'
   end
-  system('mono', rb3pkg, '-f', tmp, '-p', title, ARGV[-1])
+  system('onyx', 'stfs', tmp, '--to', ARGV[-1])
 end

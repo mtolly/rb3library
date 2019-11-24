@@ -4,7 +4,6 @@ require 'fileutils'
 require 'tmpdir'
 
 $library = File.expand_path(File.dirname(__FILE__)) + '/library'
-$stfs = File.expand_path(File.dirname(__FILE__)) + '/py360/py360/stfs.py'
 
 def split_dta(dta_string)
   chunks = []
@@ -74,7 +73,7 @@ end
 
 def handle_con(con)
   Dir.mktmpdir do |tmp|
-    system('python', $stfs, con, tmp)
+    system('onyx', 'unstfs', con, '--to', tmp)
     handle_folder(tmp)
   end
 end
